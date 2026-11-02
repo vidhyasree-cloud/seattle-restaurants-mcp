@@ -48,6 +48,104 @@ YELP_CATEGORIES = {
     "asian": "chinese,japanese,thai,vietnamese,korean",
 }
 
+# Signature / famous dishes, curated from web research on 2026-11-02
+# (restaurant menus, Yelp popular dishes, and review highlights).
+# HONEST LIMIT: this is a small curated list, not a live menu feed.
+# There is no public API for "famous dishes" — Yelp Fusion does not
+# return dishes, and menus change. For a restaurant not in this list,
+# the tool says so instead of inventing a dish. Add entries only with
+# a verified source (menu / popular-dishes list / review consensus).
+SIGNATURE_DISHES = {
+    "chai house": {
+        "restaurant": "Chai House, Kirkland",
+        "dishes": [
+            "Kashmiri chai (pink tea)",
+            "Dumm chai",
+            "Chocolate sooper biscuit",
+            "Plain sooper biscuits",
+        ],
+        "note": "A chai cafe first — its famous items are teas, not curries.",
+    },
+    "cafe ashiana": {
+        "restaurant": "Cafe Ashiana, Seattle (Capitol Hill)",
+        "dishes": [
+            "Chicken Seekh Kabab",
+            "Afgani Tikka Boti with Rumali Roti",
+            "Chicken Tikka / Malai Boti",
+            "Mutton Curry",
+            "Rumali Roti",
+            "Samosas",
+        ],
+        "note": "Indian / Pakistani, Zabiha Halal, kababs made to order.",
+    },
+    "indian-nepali kitchen": {
+        "restaurant": "Indian-Nepali Kitchen, Seattle (Aurora Ave N)",
+        "dishes": [
+            "Jhol Momo (chicken)",
+            "Tandoori Chicken Momos",
+            "Combo Momo (steamed / fried / tandoori)",
+            "Chicken Thukpa",
+            "Butter Chicken Curry",
+        ],
+        "note": "Reviewers call it 'Best momos in Seattle'.",
+    },
+    "foody moody": {
+        "restaurant": "Foody Moody, Bellevue (Bel-Red Rd, food truck)",
+        "dishes": [
+            "Lamb Korma with Pulao Rice",
+            "Crispy Chicken Zinger Burger",
+            "Malai Boti Paratha Roll",
+            "Chicken Tikka Roll",
+        ],
+        "note": "Halal Indian-Pakistani street food truck.",
+    },
+    "naan n curry": {
+        "restaurant": "Naan N Curry, Issaquah",
+        "dishes": [
+            "Chicken Dumm Biryani (most popular dish)",
+            "Lamb Dumm Biryani",
+            "Chicken Tikka Masala",
+            "Malai Boti",
+            "Haleem",
+            "Garlic Naan",
+        ],
+        "note": "Pakistani-style biryani slow-cooked in saffron.",
+    },
+    "momo king": {
+        "restaurant": "Momo King, Seattle (E Madison St, food truck)",
+        "dishes": [
+            "Steamed Chicken Momo",
+            "Butter Chicken Momo",
+            "Chili Chicken Momo",
+            "Coco Momo (coconut curry sauce)",
+            "Jhol Momo",
+        ],
+        "note": "Nepalese dumplings — butter, coco, and chili styles are the standouts.",
+    },
+    "himalayan bigfoot": {
+        "restaurant": "Himalayan Bigfoot, Kent (food truck)",
+        "dishes": [
+            "Chicken Momo",
+            "Pan-Fried Chicken Mo-Mo",
+            "Sukuti Chowmein",
+            "Chow Mein",
+            "Yakisoba",
+        ],
+        "note": "Authentic Nepali food truck.",
+    },
+    "maza grill": {
+        "restaurant": "Maza Grill, Kent",
+        "dishes": [
+            "Lamb Shahi Nihari (most celebrated dish)",
+            "Namak Mandi Lamb Tikka",
+            "Halal Aged Ribeye Steak",
+            "Mix Grilled Kebab Platter",
+            "Mardan Chapli Kebab",
+        ],
+        "note": "Halal Pakistani grill + steakhouse.",
+    },
+}
+
 # This VM's egress proxy does TLS interception with a CA that lives in the
 # system bundle but not in certifi's. Use the system bundle, and pass the
 # proxy explicitly: httpx chokes parsing this shell's no_proxy list.
@@ -345,6 +443,33 @@ def todays_specials(restaurant_name: str) -> dict:
     except Exception as exc:  # network failures must not break the tool
         result["caveat"] = f"Could not load the restaurant's website ({exc}). Call them for today's special."
     return result
+
+
+@mcp.tool()
+def get_signature_dishes(restaurant_name: str) -> dict:
+    """Famous / signature dishes for one restaurant.
+
+    HONEST LIMIT: this is a small curated list researched on 2026-11-02
+    from menus, popular-dishes lists, and review consensus — it is NOT
+    a live menu feed, and there is no public API for famous dishes.
+    If the restaurant is not in the curated list, this tool says so
+    instead of inventing dishes. Try a short name, e.g. 'ashiana',
+    'chai house', 'naan n curry', 'momo king'.
+    """
+    query = restaurant_name.lower().strip()
+    # Exact key first, then substring match in either direction, so
+    # 'ashiana', 'chai house', 'naan', 'momo king' all work.
+    if query in SIGNATURE_DISHES:
+        entry = SIGNATURE_DISHES[query]
+        return {"restaurant": entry["restaurant"], "signature_dishes": entry["dishes"], "note": entry["note"], "source": "curated-list-2026-11-02"}
+    for key, entry in SIGNATURE_DISHES.items():
+        if query in key or key in query:
+            return {"restaurant": entry["restaurant"], "signature_dishes": entry["dishes"], "note": entry["note"], "source": "curated-list-2026-11-02"}
+    return {
+        "error": f"No curated signature dishes for '{restaurant_name}' yet.",
+        "available_restaurants": sorted(e["restaurant"] for e in SIGNATURE_DISHES.values()),
+        "note": "Check the restaurant's own menu / Yelp popular dishes instead of guessing.",
+    }
 
 
 if __name__ == "__main__":

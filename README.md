@@ -11,6 +11,7 @@ Seattle, what do they serve, and what's today's special?*
 | `get_restaurant_details` | Full listing for one place (address, website, phone, hours) |
 | `top_restaurants` | Best-documented listings by cuisine group |
 | `todays_specials` | Best-effort specials lookup from the restaurant's own website |
+| `get_signature_dishes` | Famous / signature dishes for one restaurant, from a small curated list researched 2026-11-02 (menus, popular dishes, review consensus). No live dishes API exists, so unknown restaurants return "not in the list" instead of invented dishes. |
 
 ## Data source (v1 — free, no API key)
 
