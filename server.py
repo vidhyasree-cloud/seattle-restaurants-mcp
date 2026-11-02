@@ -58,6 +58,7 @@ YELP_CATEGORIES = {
 SIGNATURE_DISHES = {
     "chai house": {
         "restaurant": "Chai House, Kirkland",
+        "website": "https://thechaihouse.com/",
         "dishes": [
             "Kashmiri chai (pink tea)",
             "Dumm chai",
@@ -68,6 +69,7 @@ SIGNATURE_DISHES = {
     },
     "cafe ashiana": {
         "restaurant": "Cafe Ashiana, Seattle (Capitol Hill)",
+        "website": "https://www.cafeashianawa.com/",
         "dishes": [
             "Chicken Seekh Kabab",
             "Afgani Tikka Boti with Rumali Roti",
@@ -80,6 +82,7 @@ SIGNATURE_DISHES = {
     },
     "indian-nepali kitchen": {
         "restaurant": "Indian-Nepali Kitchen, Seattle (Aurora Ave N)",
+        "website": "https://www.indiannepalikitchen.com/",
         "dishes": [
             "Jhol Momo (chicken)",
             "Tandoori Chicken Momos",
@@ -91,6 +94,7 @@ SIGNATURE_DISHES = {
     },
     "foody moody": {
         "restaurant": "Foody Moody, Bellevue (Bel-Red Rd, food truck)",
+        "website": "https://foodyformoody.com/",
         "dishes": [
             "Lamb Korma with Pulao Rice",
             "Crispy Chicken Zinger Burger",
@@ -101,6 +105,7 @@ SIGNATURE_DISHES = {
     },
     "naan n curry": {
         "restaurant": "Naan N Curry, Issaquah",
+        "website": "http://www.naanncurry.com/",
         "dishes": [
             "Chicken Dumm Biryani (most popular dish)",
             "Lamb Dumm Biryani",
@@ -113,6 +118,7 @@ SIGNATURE_DISHES = {
     },
     "momo king": {
         "restaurant": "Momo King, Seattle (E Madison St, food truck)",
+        "website": "",
         "dishes": [
             "Steamed Chicken Momo",
             "Butter Chicken Momo",
@@ -124,6 +130,7 @@ SIGNATURE_DISHES = {
     },
     "himalayan bigfoot": {
         "restaurant": "Himalayan Bigfoot, Kent (food truck)",
+        "website": "https://himalayanbigfoot.us/",
         "dishes": [
             "Chicken Momo",
             "Pan-Fried Chicken Mo-Mo",
@@ -135,6 +142,7 @@ SIGNATURE_DISHES = {
     },
     "maza grill": {
         "restaurant": "Maza Grill, Kent",
+        "website": "https://mazagrill.co/",
         "dishes": [
             "Lamb Shahi Nihari (most celebrated dish)",
             "Namak Mandi Lamb Tikka",
@@ -456,19 +464,64 @@ def get_signature_dishes(restaurant_name: str) -> dict:
     instead of inventing dishes. Try a short name, e.g. 'ashiana',
     'chai house', 'naan n curry', 'momo king'.
     """
-    query = restaurant_name.lower().strip()
-    # Exact key first, then substring match in either direction, so
-    # 'ashiana', 'chai house', 'naan', 'momo king' all work.
-    if query in SIGNATURE_DISHES:
-        entry = SIGNATURE_DISHES[query]
-        return {"restaurant": entry["restaurant"], "signature_dishes": entry["dishes"], "note": entry["note"], "source": "curated-list-2026-11-02"}
-    for key, entry in SIGNATURE_DISHES.items():
-        if query in key or key in query:
-            return {"restaurant": entry["restaurant"], "signature_dishes": entry["dishes"], "note": entry["note"], "source": "curated-list-2026-11-02"}
+    entry = _lookup_signature(restaurant_name)
+    if entry:
+        return {"restaurant": entry["restaurant"], "signature_dishes": entry["dishes"], "note": entry["note"], "menu_url": entry.get("website", "") or None, "source": "curated-list-2026-11-02"}
     return {
         "error": f"No curated signature dishes for '{restaurant_name}' yet.",
         "available_restaurants": sorted(e["restaurant"] for e in SIGNATURE_DISHES.values()),
         "note": "Check the restaurant's own menu / Yelp popular dishes instead of guessing.",
+    }
+
+
+def _lookup_signature(restaurant_name: str) -> dict | None:
+    """Curated signature-dish entry for a name, or None. Exact key
+    first, then substring match in either direction, so 'ashiana',
+    'chai house', 'naan n curry', 'momo king' all work."""
+    query = restaurant_name.lower().strip()
+    if query in SIGNATURE_DISHES:
+        return SIGNATURE_DISHES[query]
+    for key, entry in SIGNATURE_DISHES.items():
+        if query in key or key in query:
+            return entry
+    return None
+
+
+@mcp.tool()
+def top_restaurants_with_signature_dishes(cuisine_group: str | None = "desi", limit: int = 10) -> dict:
+    """Top restaurants, ratings, signature dishes, AND menu link — all at once.
+
+    One call instead of three: it runs top_restaurants (Yelp rating +
+    review count + price when a Yelp key is set, otherwise listing
+    completeness), then attaches, for each place, its curated signature
+    dishes and its menu link (the restaurant's own website when known,
+    otherwise its Yelp page). For places not in the curated list,
+    signature_dishes is empty and the tool says so — it never invents
+    dishes, and it never invents a full menu. There is no public API
+    for full live menus, so the menu link is the honest way to show
+    the full menu: open it for current items and prices.
+    """
+    top = top_restaurants(cuisine_group=cuisine_group, limit=limit)
+    combined = []
+    for place in top.get("restaurants", []):
+        entry = _lookup_signature(place.get("name", ""))
+        menu_url = (entry.get("website") if entry else "") or place.get("yelp_url", "") or place.get("website", "")
+        combined.append({
+            "name": place.get("name"),
+            "rating": place.get("rating"),
+            "review_count": place.get("review_count"),
+            "price": place.get("price", ""),
+            "address": place.get("address", ""),
+            "cuisine": place.get("cuisine", ""),
+            "menu_url": menu_url or None,
+            "signature_dishes": entry["dishes"] if entry else [],
+            "signature_note": entry["note"] if entry else "Not in the curated signature list yet — check the menu link, do not guess.",
+            "source": place.get("source", ""),
+        })
+    return {
+        "ranking_basis": top.get("ranking_basis"),
+        "menu_note": "Full menus are not available via any public API — signature dishes above are curated highlights, and menu_url opens the restaurant's own menu / Yelp page for the full, current menu.",
+        "restaurants": combined,
     }
 
 
